@@ -1,0 +1,67 @@
+name: Release Tacones
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build:
+    name: Release Tacones
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      USER_NAME: ${{secrets.USER_NAME}}
+      USER_EMAIL: ${{secrets.USER_EMAIL}}
+      ADDON_REPOSITORY: Tacones-Repo
+    steps:
+      - name: Configure Python 3.x
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.x"
+
+      - name: Checkout repo
+        uses: actions/checkout@v2
+
+      - name: Start deployment
+        run: |
+          # Deploying
+          echo "Entering Git repo directory"
+          cd ${{ github.workspace }}
+          echo "Downloading deployment script"
+          echo "pip-installing lxml"
+          pip install lxml
+          echo "Preparing ZIP"
+          python .github/scripts/release.py -z
+          echo "- Deploying to Kodi repository"
+          python .github/scripts/release.py -r
+
+      - name: Retrieving addon metadata
+        id: retrieve-metadata
+        run: |
+          echo "- Retrieving addon metadata"
+          output=$(python .github/scripts/release.py -m)
+          version=$(echo "$output" | jq -r '.version')
+          name=$(echo "$output" | jq -r '.name')
+          id=$(echo "$output" | jq -r '.id')
+          dest=$(echo "$output" | jq -r '.dest')
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "NAME=$name" >> $GITHUB_ENV
+          echo "ID=$id" >> $GITHUB_ENV
+          echo "DEST=$dest" >> $GITHUB_ENV
+
+      - name: Use release info
+        run: |
+          echo "The release version is $VERSION"
+          echo "The addon name is $NAME"
+          echo "The addon ID is $ID"
+          echo "The destination path is $DEST"
+
+      - name: Create Release on Github
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "${{ env.NAME }} - v${{ env.VERSION }}"
+          tag_name: ${{ env.VERSION }}
+          body: "${{ env.NAME }} - v${{ env.VERSION }}"
+          draft: false
+          prerelease: false
+          files: "dist/*.zip"
+          token: ${{ secrets.GH_TOKEN }}
